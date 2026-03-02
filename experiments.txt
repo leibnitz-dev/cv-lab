@@ -1,0 +1,175 @@
+Experiment 1:
+
+import seaborn as sns
+import pandas as pd
+from pycm import ConfusionMatrix
+import matplotlib.pyplot as plt
+from pycm import ConfusionMatrix
+
+confusion_matrix = {
+    "Red Disease": {"Red Disease": 92, "Aeromoniasis": 0, "Gill Disease": 3, "Saprolegniasis": 2, "Healthy Fish": 0, "Parasitic Disease": 0, "White Tail Disease": 3},
+    "Aeromoniasis": {"Red Disease": 0, "Aeromoniasis": 94, "Gill Disease": 3, "Saprolegniasis": 0, "Healthy Fish": 3, "Parasitic Disease": 0, "White Tail Disease": 0},
+    "Gill Disease": {"Red Disease": 2, "Aeromoniasis": 0, "Gill Disease": 95, "Saprolegniasis": 0, "Healthy Fish": 0, "Parasitic Disease": 1, "White Tail Disease": 2},
+    "Saprolegniasis": {"Red Disease": 5, "Aeromoniasis": 1, "Gill Disease": 0, "Saprolegniasis": 90, "Healthy Fish": 1, "Parasitic Disease": 3, "White Tail Disease": 0},
+    "Healthy Fish": {"Red Disease": 1, "Aeromoniasis": 0, "Gill Disease": 0, "Saprolegniasis": 0, "Healthy Fish": 99, "Parasitic Disease": 0, "White Tail Disease": 0},
+    "Parasitic Disease": {"Red Disease": 0, "Aeromoniasis": 3, "Gill Disease": 7, "Saprolegniasis": 1, "Healthy Fish": 4, "Parasitic Disease": 83, "White Tail Disease": 2},
+    "White Tail Disease": {"Red Disease": 4, "Aeromoniasis": 0, "Gill Disease": 3, "Saprolegniasis": 2, "Healthy Fish": 5, "Parasitic Disease": 1, "White Tail Disease": 85}
+}
+
+
+df = pd.DataFrame(confusion_matrix).T  # Transpose for correct orientation
+plt.figure(figsize=(25, 25))
+sns.heatmap(df, annot=True, fmt="d", cmap="YlGnBu")
+plt.title("Confusion Matrix for MobileNetV2 based Classifier Model")
+plt.ylabel("Predicted Disease")
+plt.xlabel("Actual Disease")
+plt.show()
+
+
+# Create confusion matrix object
+cm2 = ConfusionMatrix(matrix=confusion_matrix)
+
+# Display matrix
+print(cm2)
+
+
+Experiment 2:
+
+from tensorflow.keras.preprocessing.image import ImageDataGenerator, load_img, img_to_array
+from matplotlib import pyplot as plt
+from numpy import expand_dims
+
+def show_augmentation(params, n=9):
+    img = load_img("/content/at.avif")
+    data = img_to_array(img)
+    samples = expand_dims(data, 0)
+
+    datagen = ImageDataGenerator(**params)
+    it = datagen.flow(samples, batch_size=1)
+
+    for i in range(n):
+        batch = next(it)
+        ax = plt.subplot(3,3,i+1)
+        ax.set_xticks([]); ax.set_yticks([])
+        plt.imshow(batch[0].astype('uint8'))
+
+    plt.show()
+
+params = dict(
+    width_shift_range=0.2,
+    height_shift_range=0.2,
+    horizontal_flip=True,
+    rotation_range=30,
+    brightness_range=[0.5, 1.5],
+    zoom_range=0.2
+)
+
+show_augmentation(params)
+
+
+Experiment 3:
+
+#3.1 vgg16 filter shape script
+from keras.applications.vgg16 import VGG16
+
+for l in VGG16().layers:
+    if 'conv' in l.name:
+        print(l.name, l.get_weights()[0].shape)
+
+#3.2 vgg 16 filter visualization script
+from keras.applications.vgg16 import VGG16
+from matplotlib import pyplot as plt
+
+f = VGG16().layers[1].get_weights()[0]
+f = (f - f.min()) / (f.max() - f.min())
+
+for i in range(6):
+    for j in range(3):
+        ax = plt.subplot(6,3,i*3+j+1); ax.set_xticks([]); ax.set_yticks([])
+        plt.imshow(f[:,:,j,i], cmap='gray')
+plt.show()
+
+#3.3 single layer feature map visualization script
+from keras.applications.vgg16 import VGG16, preprocess_input
+from keras.preprocessing.image import load_img, img_to_array
+from keras.models import Model
+from numpy import expand_dims
+from matplotlib import pyplot as plt
+
+m = VGG16()
+m = Model(m.inputs, m.layers[1].output)
+
+img = expand_dims(img_to_array(load_img('/content/at.avif', target_size=(224,224))),0)
+fmap = m.predict(preprocess_input(img))
+
+for i in range(64):
+    ax = plt.subplot(8,8,i+1); ax.set_xticks([]); ax.set_yticks([])
+    plt.imshow(fmap[0,:,:,i], cmap='gray')
+plt.show()
+
+#3.4 multiple layer visualization script
+from keras.applications.vgg16 import VGG16, preprocess_input
+from keras.preprocessing.image import load_img, img_to_array
+from keras.models import Model
+from numpy import expand_dims
+from matplotlib import pyplot as plt
+
+m = VGG16()
+m = Model(m.inputs, [m.layers[i].output for i in [2,5,9,13,17]])
+
+img = expand_dims(img_to_array(load_img('/content/at.avif', target_size=(224,224))),0)
+fmaps = m.predict(preprocess_input(img))
+
+for fmap in fmaps:
+    for i in range(64):
+        ax = plt.subplot(8,8,i+1); ax.set_xticks([]); ax.set_yticks([])
+        plt.imshow(fmap[0,:,:,i], cmap='gray')
+    plt.show()
+
+#3.5  simple sequential dense modle visualization 
+
+from keras.models import Sequential
+from keras.layers import Dense
+from tensorflow.keras.utils import plot_model
+
+m = Sequential([Dense(2,input_dim=1,activation='relu'),
+                Dense(1,activation='sigmoid')])
+
+plot_model(m, to_file='model_plot.png', show_shapes=True)
+
+Experiment4:
+
+#pip install opencv-python
+import sys, cv2, numpy as np
+from tensorflow.keras.applications import VGG16, VGG19, ResNet50, InceptionV3, Xception
+from tensorflow.keras.applications import imagenet_utils
+from tensorflow.keras.applications.inception_v3 import preprocess_input
+from tensorflow.keras.preprocessing.image import load_img, img_to_array
+
+
+models = { "vgg16":VGG16, "vgg19":VGG19, "resnet":ResNet50, "inception":InceptionV3, "xception":Xception}
+
+img_path = sys.argv[1]
+model_name = sys.argv[2] if len(sys.argv)>2 else "vgg16"
+
+size = (299,299) if model_name in ["inception","xception"] else (224,224)
+prep = preprocess_input if model_name in ["inception","xception"] else imagenet_utils.preprocess_input
+model = models[model_name](weights="imagenet")
+
+img = prep(np.expand_dims(img_to_array(load_img(img_path, target_size=size)),0))
+preds = model.predict(img)
+results = imagenet_utils.decode_predictions(preds)[0]
+
+for i, (_,label,prob) in enumerate(results):
+    print(f"{i+1}, {label}:{prob*100:.2f}%")
+
+orig=cv2.imread(img_path)
+cv2.putText(orig,f"{results[0][1]}: {results[0][2]*100:.2f}%",
+            (10,30),cv2.FONT_HERSHEY_SIMPLEX,0.8,(0,0,255),2)
+cv2.imshow(orig)
+cv2.waitKey(0)
+
+
+
+#create a venv with py 3.10
+# then pip install tensorflow==2.10.0
