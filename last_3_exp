@@ -1,0 +1,202 @@
+For feature learning based feature extraction and image classification (or) the transfer learning based image classification
+
+import os
+import numpy as np
+import tensorflow as tf
+from tensorflow.keras.preprocessing.image import ImageDataGenerator, load_img, img_to_array
+from tensorflow.keras.models import load_model
+import tensorflow.keras.backend as K
+
+from io import BytesIO
+from PIL import Image
+import cv2
+
+import matplotlib.pyplot as plt
+import matplotlib.image as mpimg
+from matplotlib import colors
+import requests
+
+# Set the learning phase to not training
+# K.set_learning_phase(0)
+
+model = load_model('/content/drive/MyDrive/tranfer_learning_inceptionv3_fish_disease.keras')
+
+# Set the image generator
+eval_datagen = ImageDataGenerator(rescale=1./255)
+eval_dir = '/content/drive/MyDrive/Fish_Disease_Project_Backup/Freshwater Fish Disease Aquaculture in south asia/Test'
+eval_generator = eval_datagen.flow_from_directory(eval_dir, target_size=(299, 299),batch_size=32, class_mode='categorical')
+
+# Evaluate the model (evaluate replaces evaluate_generator)
+loss = model.evaluate(eval_generator, steps=10)
+for index, name in enumerate(model.metrics_names):
+    print(name, loss[index])
+
+# Utility functions
+classes = [
+    'Bacterial Red disease',
+    'Bacterial diseases - Aeromoniasis',
+    'Bacterial gill disease',
+    'Fungal diseases Saprolegniasis',
+    'Healthy Fish',
+    'Parasitic diseases',
+    'Viral diseases White tail disease'
+]
+
+def preprocess_input(x):
+    x = img_to_array(x) / 255.
+    return np.expand_dims(x, axis=0)
+
+def predict_from_image_path(image_path):
+    return predict_image(load_img(image_path, target_size=(299, 299)))
+
+def predict_from_image_url(image_url):
+    res = requests.get(image_url)
+    im = Image.open(BytesIO(res.content))
+    # Note: passing PIL image directly to load_img context isn't standard,
+    # but kept the structure similar. Better to use im.resize((299,299))
+    return predict_image(im.resize((299,299)))
+
+def predict_image(im):
+    x = preprocess_input(im)
+    pred = np.argmax(model.predict(x))
+    return pred, classes[pred]
+
+!pip install tf-explain
+model = load_model('/content/drive/MyDrive/tranfer_learning_inceptionv3_fish_disease.keras')
+
+from tf_explain.core.grad_cam import GradCAM
+def grad_CAM(image_path):
+    img = cv2.imread(image_path)
+    img = cv2.resize(img, (299, 299))
+    plt.imshow(img)
+    plt.axis('off')
+    plt.show()
+
+    x = img / 255.0   # or use preprocess_input if used in training
+    x = np.expand_dims(x, axis=0)
+
+    explainer = GradCAM()
+
+    grid = explainer.explain(
+        validation_data=(x, np.array([0])),
+        model=model,
+        layer_name="conv2d_93",  # make sure this layer exists
+        class_index=None
+    )
+
+    plt.imshow(grid)
+    plt.axis('off')
+    plt.show()
+
+# Main Execution
+print(predict_from_image_path('/c
+ontent/drive/MyDrive/Fish_Disease_Project_Backup/Freshwater Fish Disease Aquaculture in south asia/Test/Parasitic diseases/Parasitic diseases (110).jpg'))
+grad_CAM('/content/drive/MyDrive/Fish_Disease_Project_Backup/Freshwater Fish Disease Aquaculture in south asia/Test/Parasitic diseases/Parasitic diseases (110).jpg')
+
+
+Image caption generator:
+
+Schematic diagram of image caption generator
+
+
+
+An image is first processed by a pre-trained VGG model to extract a 4096-feature vector, which is reduced to 256 dimensions.
+A sequence of words is processed using an embedding layer and an LSTM to also produce a 256-dimensional vector.
+These two vectors are combined (added) and passed through dense layers to predict the next word in the sentence using a softmax output over the vocabulary.
+
+The metrics these models are tested on:
+BLEU-1: 0.579114
+BLEU-2: 0.344856  <main metrics>
+BLEU-3: 0.252154
+BLEU-4: 0.131446
+
+
+
+Almost everything we need to generate captions for entirely new photographs is in the model file.To reuse we need the Tokenizer for encoding generated words for the model while generating a sequence, and the maximum length of input sequences, used when we defined the model (e.g. 34).
+
+Program:
+
+
+
+
+from pickle import load
+from numpy import argmax
+from keras.preprocessing.sequence import pad_sequences
+from keras.applications.vgg16 import VGG16
+from keras.preprocessing.image import load_img
+from keras.preprocessing.image import img_to_array
+from keras.applications.vgg16 import preprocess_input
+from keras.models import Model
+from keras.models import load_model
+
+
+# extract features from each photo in the directory
+def extract_features(filename):
+	# load the model
+	model = VGG16()
+	# re-structure the model
+	model = Model(inputs=model.inputs, outputs=model.layers[-2].output)
+	# load the photo
+	image = load_img(filename, target_size=(224, 224))
+	# convert the image pixels to a numpy array
+	image = img_to_array(image)
+	# reshape data for the model
+	image = image.reshape((1, image.shape[0], image.shape[1], image.shape[2]))
+	# prepare the image for the VGG model
+	image = preprocess_input(image)
+	# get features
+	feature = model.predict(image, verbose=0)
+	return feature
+
+
+# map an integer to a word
+def word_for_id(integer, tokenizer):
+	for word, index in tokenizer.word_index.items():
+		if index == integer:
+			return word
+	return None
+
+
+# generate a description for an image
+def generate_desc(model, tokenizer, photo, max_length):
+	# seed the generation process
+	in_text = 'startseq'
+	# iterate over the whole length of the sequence
+	for i in range(max_length):
+		# integer encode input sequence
+		sequence = tokenizer.texts_to_sequences([in_text])[0]
+		# pad input
+		sequence = pad_sequences([sequence], maxlen=max_length)
+		# predict next word
+		yhat = model.predict([photo,sequence], verbose=0)
+		# convert probability to integer
+		yhat = argmax(yhat)
+		# map integer to word
+		word = word_for_id(yhat, tokenizer)
+		# stop if we cannot map the word
+		if word is None:
+			break
+		# append as input for generating the next word
+		in_text += ' ' + word
+		# stop if we predict the end of the sequence
+		if word == 'endseq':
+			break
+	return in_text
+
+
+# load the tokenizer
+tokenizer = load(open('tokenizer.pkl', 'rb'))
+# pre-define the max sequence length (from training)
+max_length = 34
+# load the model
+model = load_model('model-ep002-loss3.245-val_loss3.612.h5')
+# load and prepare the photograph
+photo = extract_features('example.jpg')
+# generate description
+description = generate_desc(model, tokenizer, photo, max_length)
+print(description)
+
+
+
+
+
