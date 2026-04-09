@@ -40,7 +40,7 @@ classes = [
     'Healthy Fish',
     'Parasitic diseases',
     'Viral diseases White tail disease'
-]
+] or classes = ['CNV', 'DME', 'DRUSEN', 'NORMAL']
 
 def preprocess_input(x):
     x = img_to_array(x) / 255.
